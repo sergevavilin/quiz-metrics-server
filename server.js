@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); 
 
 // 1. Подключение к MongoDB
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://sergevavilin_db_user:6jDW62GJ0aDnIIBj@cluster0.q9aecqy.mongodb.net/Cluster0?retryWrites=true&w=majority";
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://sergevavilin_db_user:6jDW62GJ0aDnIIBj@cluster0.q9aecqy.mongodb.net/Admin_Collect?appName=Cluster0";
 
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ Connected to MongoDB Atlas'))
@@ -126,4 +126,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
 });
+
 
