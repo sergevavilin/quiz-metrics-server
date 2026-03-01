@@ -38,7 +38,7 @@ const AdminCollectSchema = new mongoose.Schema({
     filename: String,     // 'akush.goose'
     content: Buffer,      // Бинарные данные архива (BSON)
     size_bytes: Number
-}, { collection: 'Admin_Collect' }); // Явно указываем твою коллекцию
+}, { collection: 'Store_Collect' }); // Явно указываем твою коллекцию
 const AdminCollect = mongoose.model('AdminCollect', AdminCollectSchema);
 
 
@@ -126,3 +126,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
 });
+
