@@ -4,55 +4,116 @@ const mongoose = require('mongoose');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// Увеличиваем лимит, так как коллекции могут быть тяжелыми
+app.use(express.json({ limit: '50mb' })); 
 
 // 1. Подключение к MongoDB
-// Замени <CONNECTION_STRING> на свою строку из Atlas
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://sergevavilin_db_user:6jDW62GJ0aDnIIBj@cluster0.q9aecqy.mongodb.net/?appName=Cluster0";
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://sergevavilin_db_user:6jDW62GJ0aDnIIBj@cluster0.q9aecqy.mongodb.net/Cluster0?retryWrites=true&w=majority";
 
 mongoose.connect(MONGO_URI)
-    .then(() => console.log('Connected to MongoDB Atlas'))
-    .catch(err => console.error('MongoDB connection error:', err));
+    .then(() => console.log('✅ Connected to MongoDB Atlas'))
+    .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// 2. Описание схемы данных
-const SnapshotSchema = new mongoose.Schema({
-    dayKey: { type: String, unique: true, required: true }, // Уникальный ключ дня
-    data: Object,                                          // Сами метрики
+// ==========================================
+// 2. СХЕМЫ ДАННЫХ
+// ==========================================
+
+// --- Метрики юзеров ---
+const MetricSchema = new mongoose.Schema({
+    userId: { type: String, required: true },  // Идентификатор "папки" юзера
+    dayKey: { type: String, required: true },  // Уникальный ключ дня (например, 2026-03-01)
+    data: Object,                              // Сами метрики
     receivedAt: { type: Date, default: Date.now }
 });
+// Создаем составной индекс, чтобы у 1 юзера был 1 отчет в 1 день
+MetricSchema.index({ userId: 1, dayKey: 1 }, { unique: true });
+const Metric = mongoose.model('Metric', MetricSchema);
 
-const Snapshot = mongoose.model('Snapshot', SnapshotSchema);
+// --- Коллекции (Базы тестов) ---
+const AdminCollectSchema = new mongoose.Schema({
+    id: String,           // 'akush' (Нужно добавить руками в БД)
+    title: String,        // 'Акушерство' (Нужно добавить руками в БД)
+    description: String,  // Описание (Нужно добавить руками в БД)
+    version: String,      // '1.0' (Нужно добавить руками в БД)
+    filename: String,     // 'akush.goose'
+    content: Buffer,      // Бинарные данные архива (BSON)
+    size_bytes: Number
+}, { collection: 'Admin_Collect' }); // Явно указываем твою коллекцию
+const AdminCollect = mongoose.model('AdminCollect', AdminCollectSchema);
 
-// 3. Эндпоинт ПРОВЕРКИ (exists?)
-app.get('/metrics/check/:dayKey', async (req, res) => {
+
+// ==========================================
+// 3. API МАГАЗИНА И КОЛЛЕКЦИЙ
+// ==========================================
+
+/**
+ * 1 & 2. Отдача метаданных для Стора (Имитация store.json)
+ * Клиент запрашивает это, чтобы понять, что есть на сервере и что удалили.
+ * Мы исключаем поле `content` (-content), чтобы не гонять мегабайты лишних данных!
+ */
+app.get('/api/store', async (req, res) => {
     try {
-        const { dayKey } = req.params;
-        const exists = await Snapshot.exists({ dayKey });
+        const files = await AdminCollect.find({}, '-content');
         
-        console.log(`Check: ${dayKey} -> ${!!exists}`);
-        res.json({ exists: !!exists });
+        // Форматируем под тот вид, который ждет твой StoreScreen.ts
+        const storeData = files.map(f => ({
+            id: f.id || f.filename.split('.')[0],
+            title: f.title || f.filename,
+            description: f.description || '',
+            file: f.filename,
+            version: f.version || '1.0'
+        }));
+        
+        res.json(storeData);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-// 4. Эндпоинт ЗАГРУЗКИ (upload)
-app.post('/metrics/upload', async (req, res) => {
+/**
+ * 3. Скачивание самой коллекции (.goose архива)
+ */
+app.get('/api/download/:filename', async (req, res) => {
     try {
-        const { dayKey, data } = req.body;
-
-        if (!dayKey || !data) {
-            return res.status(400).json({ error: 'Missing fields' });
+        const fileDoc = await AdminCollect.findOne({ filename: req.params.filename });
+        
+        if (!fileDoc || !fileDoc.content) {
+            return res.status(404).json({ error: 'Коллекция не найдена на сервере' });
         }
 
-        // Сохраняем в базу (upsert: если вдруг пришло дважды, обновит)
-        await Snapshot.findOneAndUpdate(
-            { dayKey },
+        // Отдаем бинарный буфер прямо в HTTP-ответ. 
+        // fetch().blob() на клиенте съест это идеально.
+        res.set('Content-Type', 'application/octet-stream');
+        res.set('Content-Disposition', `attachment; filename="${fileDoc.filename}"`);
+        res.send(fileDoc.content);
+
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+
+// ==========================================
+// 4. API МЕТРИК
+// ==========================================
+
+app.post('/metrics/upload', async (req, res) => {
+    try {
+        // Теперь мы требуем userId
+        const { userId, dayKey, data } = req.body;
+
+        if (!userId || !dayKey || !data) {
+            return res.status(400).json({ error: 'Missing userId, dayKey, or data fields' });
+        }
+
+        // Сохраняем в базу с привязкой к конкретному юзеру
+        await Metric.findOneAndUpdate(
+            { userId, dayKey },
             { data },
             { upsert: true, new: true }
         );
 
-        console.log(`Saved: ${dayKey}`);
+        console.log(`[Metrics] Saved report for user: ${userId}, day: ${dayKey}`);
         res.status(201).json({ status: 'saved' });
     } catch (e) {
         console.error('Upload error:', e);
@@ -60,5 +121,8 @@ app.post('/metrics/upload', async (req, res) => {
     }
 });
 
+// Запуск сервера
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+});
