@@ -44,7 +44,7 @@ const ReportSchema = new mongoose.Schema({
     comment: String,     // Что именно не так
     status: { type: String, default: 'new' }, // для тебя: new, fixed, ignored
     receivedAt: { type: Date, default: Date.now }
-}, { collection: 'Reports' });
+}, { collection: 'Report' });
 const Report = mongoose.model('Report', ReportSchema);
 
 // --- 3. Коллекция Стора (Store_Collect) ---
@@ -57,7 +57,7 @@ const AdminCollectSchema = new mongoose.Schema({
     content: Buffer, 
     size_bytes: Number
 }, { collection: 'Store_Collect' });
-const AdminCollect = mongoose.model('Store_Collect', AdminCollectSchema);
+const AdminCollect = mongoose.model('Admin_Collect', AdminCollectSchema);
 
 
 // ==========================================
@@ -156,4 +156,5 @@ app.get('/api/download/:filename', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 GooseServer v0.1 running on ${PORT}`));
+
 
