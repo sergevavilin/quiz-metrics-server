@@ -4,58 +4,132 @@ const mongoose = require('mongoose');
 
 const app = express();
 app.use(cors());
-// Увеличиваем лимит, так как коллекции могут быть тяжелыми
 app.use(express.json({ limit: '50mb' })); 
 
 // 1. Подключение к MongoDB
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://sergevavilin_db_user:6jDW62GJ0aDnIIBj@cluster0.q9aecqy.mongodb.net/Admin_Collect?appName=Cluster0";
+const MONGO_URI = process.env.MONGO_URI; 
+
+if (!MONGO_URI) {
+    console.error("❌ КРИТИЧЕСКАЯ ОШИБКА: Переменная MONGO_URI не задана в настройках сервера!");
+    process.exit(1);
+}
 
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ Connected to MongoDB Atlas'))
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // ==========================================
-// 2. СХЕМЫ ДАННЫХ
+// 2. СХЕМЫ ДАННЫХ (Collections)
 // ==========================================
 
-// --- Метрики юзеров ---
+// --- 1. Коллекция Метрик (User_Metrics) ---
 const MetricSchema = new mongoose.Schema({
-    userId: { type: String, required: true },  // Идентификатор "папки" юзера
-    dayKey: { type: String, required: true },  // Уникальный ключ дня (например, 2026-03-01)
-    data: Object,                              // Сами метрики
+    userId: { type: String, required: true },  
+    date: { type: String, required: true },    // "2026-03-03"
+    dayKey: { type: String, required: true },  // "UUID_DATE"
+    sessions: Array,                           // Массив сессий из твоего DailyReport
+    isNewUser: { type: Boolean, default: false }, // Флаг регистрации
     receivedAt: { type: Date, default: Date.now }
-});
-// Создаем составной индекс, чтобы у 1 юзера был 1 отчет в 1 день
-MetricSchema.index({ userId: 1, dayKey: 1 }, { unique: true });
+}, { collection: 'User_Metrics' });
+
+MetricSchema.index({ dayKey: 1 }, { unique: true });
 const Metric = mongoose.model('Metric', MetricSchema);
 
-// --- Коллекции (Базы тестов) ---
+// --- 2. Коллекция Репортов (Reports) ---
+const ReportSchema = new mongoose.Schema({
+    userId: String,
+    screen: String,      // 'test', 'settings' и т.д.
+    collectionId: String,
+    questionId: String,
+    comment: String,     // Что именно не так
+    status: { type: String, default: 'new' }, // для тебя: new, fixed, ignored
+    receivedAt: { type: Date, default: Date.now }
+}, { collection: 'Reports' });
+const Report = mongoose.model('Report', ReportSchema);
+
+// --- 3. Коллекция Стора (Store_Collect) ---
 const AdminCollectSchema = new mongoose.Schema({
-    id: String,           // 'akush' (Нужно добавить руками в БД)
-    title: String,        // 'Акушерство' (Нужно добавить руками в БД)
-    description: String,  // Описание (Нужно добавить руками в БД)
-    version: String,      // '1.0' (Нужно добавить руками в БД)
-    filename: String,     // 'akush.goose'
-    content: Buffer,      // Бинарные данные архива (BSON)
+    id: String,
+    title: String,
+    description: String,
+    version: String,
+    filename: String,
+    content: Buffer, 
     size_bytes: Number
-}, { collection: 'Store_Collect' }); // Явно указываем твою коллекцию
+}, { collection: 'Store_Collect' });
 const AdminCollect = mongoose.model('AdminCollect', AdminCollectSchema);
 
 
 // ==========================================
-// 3. API МАГАЗИНА И КОЛЛЕКЦИЙ
+// 3. API МЕТРИК И РЕГИСТРАЦИИ
 // ==========================================
 
 /**
- * 1 & 2. Отдача метаданных для Стора (Имитация store.json)
- * Клиент запрашивает это, чтобы понять, что есть на сервере и что удалили.
- * Мы исключаем поле `content` (-content), чтобы не гонять мегабайты лишних данных!
+ * Регистрация "Первого контакта"
  */
+app.post('/metrics/register', async (req, res) => {
+    try {
+        const { userId, date } = req.body;
+        
+        // Создаем запись-"пустышку", которая помечает юзера как активного
+        await Metric.findOneAndUpdate(
+            { dayKey: `reg_${userId}` }, 
+            { userId, date, isNewUser: true },
+            { upsert: true }
+        );
+
+        console.log(`[Auth] New user registered: ${userId}`);
+        res.status(201).json({ status: 'registered' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+/**
+ * Загрузка дневного отчета (UUID_DATE.json)
+ */
+app.post('/metrics/upload', async (req, res) => {
+    try {
+        const { dayKey, userId, date, sessions } = req.body;
+
+        await Metric.findOneAndUpdate(
+            { dayKey },
+            { userId, date, sessions, isNewUser: false },
+            { upsert: true, new: true }
+        );
+
+        console.log(`[Metrics] Snapshot saved: ${dayKey}`);
+        res.status(200).json({ status: 'ok' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ==========================================
+// 4. API РЕПОРТОВ (Жалоб)
+// ==========================================
+
+app.post('/api/report', async (req, res) => {
+    try {
+        const reportData = req.body;
+        const newReport = new Report(reportData);
+        await newReport.save();
+
+        console.log(`[Report] New issue from ${reportData.userId} on ${reportData.screen}`);
+        res.status(201).json({ status: 'received' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+
+// ==========================================
+// 5. API МАГАЗИНА (БЕЗ ИЗМЕНЕНИЙ)
+// ==========================================
+
 app.get('/api/store', async (req, res) => {
     try {
         const files = await AdminCollect.find({}, '-content');
-        
-        // Форматируем под тот вид, который ждет твой StoreScreen.ts
         const storeData = files.map(f => ({
             id: f.id || f.filename.split('.')[0],
             title: f.title || f.filename,
@@ -63,68 +137,22 @@ app.get('/api/store', async (req, res) => {
             file: f.filename,
             version: f.version || '1.0'
         }));
-        
         res.json(storeData);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-/**
- * 3. Скачивание самой коллекции (.goose архива)
- */
 app.get('/api/download/:filename', async (req, res) => {
     try {
         const fileDoc = await AdminCollect.findOne({ filename: req.params.filename });
-        
-        if (!fileDoc || !fileDoc.content) {
-            return res.status(404).json({ error: 'Коллекция не найдена на сервере' });
-        }
-
-        // Отдаем бинарный буфер прямо в HTTP-ответ. 
-        // fetch().blob() на клиенте съест это идеально.
+        if (!fileDoc) return res.status(404).send('Not found');
         res.set('Content-Type', 'application/octet-stream');
-        res.set('Content-Disposition', `attachment; filename="${fileDoc.filename}"`);
         res.send(fileDoc.content);
-
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        res.status(500).send(e.message);
     }
 });
 
-
-// ==========================================
-// 4. API МЕТРИК
-// ==========================================
-
-app.post('/metrics/upload', async (req, res) => {
-    try {
-        // Теперь мы требуем userId
-        const { userId, dayKey, data } = req.body;
-
-        if (!userId || !dayKey || !data) {
-            return res.status(400).json({ error: 'Missing userId, dayKey, or data fields' });
-        }
-
-        // Сохраняем в базу с привязкой к конкретному юзеру
-        await Metric.findOneAndUpdate(
-            { userId, dayKey },
-            { data },
-            { upsert: true, new: true }
-        );
-
-        console.log(`[Metrics] Saved report for user: ${userId}, day: ${dayKey}`);
-        res.status(201).json({ status: 'saved' });
-    } catch (e) {
-        console.error('Upload error:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Запуск сервера
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-});
-
-
+app.listen(PORT, () => console.log(`🚀 GooseServer v0.1 running on ${PORT}`));
