@@ -30,7 +30,7 @@ const MetricSchema = new mongoose.Schema({
     sessions: Array,                           // Массив сессий из твоего DailyReport
     isNewUser: { type: Boolean, default: false }, // Флаг регистрации
     receivedAt: { type: Date, default: Date.now }
-}, { collection: 'User_Metrics' });
+}, { collection: 'metrics' });
 
 MetricSchema.index({ dayKey: 1 }, { unique: true });
 const Metric = mongoose.model('Metric', MetricSchema);
@@ -57,7 +57,7 @@ const AdminCollectSchema = new mongoose.Schema({
     content: Buffer, 
     size_bytes: Number
 }, { collection: 'Store_Collect' });
-const AdminCollect = mongoose.model('AdminCollect', AdminCollectSchema);
+const AdminCollect = mongoose.model('Store_Collect', AdminCollectSchema);
 
 
 // ==========================================
@@ -156,3 +156,4 @@ app.get('/api/download/:filename', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 GooseServer v0.1 running on ${PORT}`));
+
