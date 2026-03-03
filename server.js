@@ -38,13 +38,13 @@ const Metric = mongoose.model('Metric', MetricSchema);
 // --- 2. Коллекция Репортов (Reports) ---
 const ReportSchema = new mongoose.Schema({
     userId: String,
-    screen: String,      // 'test', 'settings' и т.д.
-    collectionId: String,
-    questionId: String,
-    comment: String,     // Что именно не так
-    status: { type: String, default: 'new' }, // для тебя: new, fixed, ignored
+    date: String,
+    category: String,      // typo, wrong_answer, bug и т.д.
+    text: String,          // Текст сообщения юзера
+    context: Object,       // Сюда автоматически упадут screen, collectionId, questionId
+    status: { type: String, default: 'new' }, 
     receivedAt: { type: Date, default: Date.now }
-}, { collection: 'Report' });
+}, { collection: 'Report' }); // <-- Без 's', как мы и договаривались
 const Report = mongoose.model('Report', ReportSchema);
 
 // --- 3. Коллекция Стора (Store_Collect) ---
@@ -156,5 +156,6 @@ app.get('/api/download/:filename', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 GooseServer v0.1 running on ${PORT}`));
+
 
 
