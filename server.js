@@ -157,5 +157,9 @@ app.get('/api/download/:filename', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 GooseServer v0.1 running on ${PORT}`));
 
+app.get('/api/ping', (req, res) => {
+    res.status(200).send('🪿 Honk! Server is awake.');
+});
+
 
 
