@@ -198,8 +198,6 @@ const isTester = await BetaTester.findOne({ userId });
                 isForm: true // <--- Явно говорим: "Рисуй инпут для почты!"
             });
         }
-            });
-        }
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -230,6 +228,7 @@ app.listen(PORT, () => console.log(`🚀 GooseServer v0.1 running on ${PORT}`));
 app.get('/api/ping', (req, res) => {
     res.status(200).send('🪿 Honk! Server is awake.');
 });
+
 
 
 
