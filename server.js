@@ -201,8 +201,6 @@ const isTester = await BetaTester.findOne({ userId });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
-});
-
 // Сохранение почты от юзера
 app.post('/api/news/subscribe', async (req, res) => {
     try {
@@ -228,6 +226,7 @@ app.listen(PORT, () => console.log(`🚀 GooseServer v0.1 running on ${PORT}`));
 app.get('/api/ping', (req, res) => {
     res.status(200).send('🪿 Honk! Server is awake.');
 });
+
 
 
 
