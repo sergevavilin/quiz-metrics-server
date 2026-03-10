@@ -54,6 +54,7 @@ const AdminCollectSchema = new mongoose.Schema({
     description: String,
     version: String,
     filename: String,
+    amount_q: Number, // <--- ДОБАВИЛИ ЭТО ПОЛЕ
     content: Buffer, 
     size_bytes: Number
 }, { collection: 'Store_Collect' });
@@ -130,7 +131,7 @@ app.post('/api/report', async (req, res) => {
 
 
 // ==========================================
-// 5. API МАГАЗИНА (БЕЗ ИЗМЕНЕНИЙ)
+// 5. API МАГАЗИНА
 // ==========================================
 
 app.get('/api/store', async (req, res) => {
@@ -141,7 +142,8 @@ app.get('/api/store', async (req, res) => {
             title: f.title || f.filename,
             description: f.description || '',
             file: f.filename,
-            version: f.version || '1.0'
+            version: f.version || '1.0',
+            amount_q: f.amount_q || 0 // <--- ТЕПЕРЬ СЕРВЕР ОТДАЕТ ЭТУ ЦИФРУ ГУСЮ
         }));
         res.json(storeData);
     } catch (e) {
@@ -178,25 +180,26 @@ app.get('/api/news/latest', async (req, res) => {
 
             // ВАРИАНТ А: Ссылки еще нет (Апрель, ждем апрува от Google)
             // Идеально - вообще ничего не присылать, чтобы не спамить юзера пустыми окнами каждый день.
-            // return res.json(null); 
+            return res.json(null); 
 
             // ВАРИАНТ Б: Ссылка появилась (Май, Гусь в Google Play)
-            return res.json({
+            /*return res.json({
                 id: 'v2_beta_ready', 
                 title: '✅ Гусь в Google Play!',
                 description: 'Спасибо за ожидание! Ваша почта добавлена в список тестеров. Скачайте официальную бету по ссылке ниже.',
                 isForm: false, // <--- ВОТ ОНО! Прячем поле ввода почты
                 link: 'https://play.google.com/apps/testing/com.goose.learn' // <--- Даем ссылку
-            });
+            });*/
             
         } else {
+            return res.json(null);
             // МАССОВАЯ (Чувак еще не дал почту)
-            return res.json({
+            /*return res.json({
                 id: 'global_update_v1', 
                 title: 'ГЛОБАЛЬНОЕ ОБНОВЛЕНИЕ',
                 description: 'Гусь готовится к вылету в Google Play! Нам нужны 20 верных тестеров для прохождения модерации.',
                 isForm: true // <--- Явно говорим: "Рисуй инпут для почты!"
-            });
+            });*/
         }
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -228,4 +231,5 @@ app.listen(PORT, () => console.log(`🚀 GooseServer v0.1 running on ${PORT}`));
 app.get('/api/ping', (req, res) => {
     res.status(200).send('🪿 Honk! Server is awake.');
 });
+
 
