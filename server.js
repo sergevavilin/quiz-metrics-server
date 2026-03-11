@@ -180,26 +180,26 @@ app.get('/api/news/latest', async (req, res) => {
 
             // ВАРИАНТ А: Ссылки еще нет (Апрель, ждем апрува от Google)
             // Идеально - вообще ничего не присылать, чтобы не спамить юзера пустыми окнами каждый день.
-            return res.json(null); 
+            // return res.json(null); 
 
             // ВАРИАНТ Б: Ссылка появилась (Май, Гусь в Google Play)
-            /*return res.json({
+            return res.json({
                 id: 'v2_beta_ready', 
                 title: '✅ Гусь в Google Play!',
                 description: 'Спасибо за ожидание! Ваша почта добавлена в список тестеров. Скачайте официальную бету по ссылке ниже.',
                 isForm: false, // <--- ВОТ ОНО! Прячем поле ввода почты
                 link: 'https://play.google.com/apps/testing/com.goose.learn' // <--- Даем ссылку
-            });*/
+            });//*/
             
         } else {
-            return res.json(null);
+            //return res.json(null);
             // МАССОВАЯ (Чувак еще не дал почту)
-            /*return res.json({
+            return res.json({
                 id: 'global_update_v1', 
                 title: 'ГЛОБАЛЬНОЕ ОБНОВЛЕНИЕ',
                 description: 'Гусь готовится к вылету в Google Play! Нам нужны 20 верных тестеров для прохождения модерации.',
                 isForm: true // <--- Явно говорим: "Рисуй инпут для почты!"
-            });*/
+            });//*/
         }
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -231,5 +231,6 @@ app.listen(PORT, () => console.log(`🚀 GooseServer v0.1 running on ${PORT}`));
 app.get('/api/ping', (req, res) => {
     res.status(200).send('🪿 Honk! Server is awake.');
 });
+
 
 
